@@ -41,8 +41,8 @@ func (cfg *CfgAPI) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	user, err := cfg.DB.CreateUser(r.Context(), database.CreateUserParams{
 		Username:       params.Username,
 		HashedPassword: hashed_password,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	})
 	if err == sql.ErrNoRows {
 		w.WriteHeader(http.StatusConflict)

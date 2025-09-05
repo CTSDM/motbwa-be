@@ -96,17 +96,18 @@ func (cfg *CfgAPI) createTokens(ctx context.Context, userID uuid.UUID) (string, 
 	refreshToken, err := cfg.DB.GetRefreshToken(ctx, userID)
 	switch err {
 	case sql.ErrNoRows:
-		_, err = cfg.DB.CreateRefreshToken(ctx, database.CreateRefreshTokenParams{
+		refreshToken, err = cfg.DB.CreateRefreshToken(ctx, database.CreateRefreshTokenParams{
 			Token:     refreshTokenString,
 			UserID:    userID,
-			CreatedAt: time.Now(),
-			ExpiresAt: time.Now().Add(cfg.RefreshTokenExpiration),
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+			ExpiresAt: time.Now().UTC().Add(cfg.RefreshTokenExpiration),
 		})
 	case nil:
 		refreshToken, err = cfg.DB.UpdateRefreshToken(ctx, database.UpdateRefreshTokenParams{
 			UserID:    userID,
-			UpdatedAt: time.Now(),
-			ExpiresAt: time.Now().Add(cfg.RefreshTokenExpiration),
+			UpdatedAt: time.Now().UTC(),
+			ExpiresAt: time.Now().UTC().Add(cfg.RefreshTokenExpiration),
 		})
 	default:
 		return "", "", fmt.Errorf("failed to deleted old refresh token: %w", err)
