@@ -2,117 +2,95 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/CTSDM/motbwa-be/internal/auth"
+	"github.com/CTSDM/motbwa-be/internal/database"
 )
 
-func TestParseLoginRequest(t *testing.T) {
-	type testCases []struct {
-		p   any
-		err error
-	}
-
-	happyCases := testCases{
+func TestHandlerUser(t *testing.T) {
+	testCases := []struct {
+		name           string
+		setupUser      bool
+		emptyBody      bool
+		expectedStatus int
+	}{
 		{
-			p: parameters{
-				Username: "user",
-				Password: "test",
-			},
-			err: nil,
+			name:           "happy path",
+			setupUser:      false,
+			expectedStatus: http.StatusCreated,
 		},
 		{
-			p: parameters{
-				Username: "test",
-				Password: "user",
-			},
-			err: nil,
+			name:           "user already exists",
+			setupUser:      true,
+			expectedStatus: http.StatusConflict,
 		},
-	}
-
-	t.Run("Return the correct inputs", func(t *testing.T) {
-		cfg := CfgAPI{}
-		for _, c := range happyCases {
-			want := c.p
-			sending, err := json.Marshal(want)
-			if err != nil {
-				t.Fatal("Something went wrong while marshaling")
-			}
-			body := io.NopCloser(bytes.NewBuffer(sending))
-			r := &http.Request{
-				Body: body,
-			}
-			got, err := cfg.parseLoginRequest(r)
-			if err != c.err {
-				t.Errorf("Got err: %s", err)
-			}
-			if *got != want {
-				t.Errorf("Got %q, want %q", got, want)
-			}
-		}
-	})
-
-	t.Run("Identifies outputs with different values", func(t *testing.T) {
-		cfg := CfgAPI{}
-		want := parameters{
-			Username: "hello",
-			Password: "byebye",
-		}
-		for _, c := range happyCases {
-			sending, err := json.Marshal(c.p)
-			if err != nil {
-				t.Fatal("Something went wrong while marshaling")
-			}
-			body := io.NopCloser(bytes.NewBuffer(sending))
-			r := &http.Request{
-				Body: body,
-			}
-			got, err := cfg.parseLoginRequest(r)
-			if err != c.err {
-				t.Errorf("Got err: %s", err)
-			}
-			if *got == want {
-				t.Errorf("Got %q, want %q", got, want)
-			}
-		}
-	})
-
-	type wrongParam struct {
-		Email string `json:"email"`
-	}
-
-	wrongJSONCase := testCases{
 		{
-			p: wrongParam{
-				Email: "a@a.com",
-			},
-			err: nil,
+			name:           "empty request body",
+			setupUser:      false,
+			emptyBody:      true,
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
-	t.Run("Identifies different shapes", func(t *testing.T) {
-		cfg := CfgAPI{}
-		want := parameters{
-			Username: "hello",
-			Password: "byebye",
-		}
-		for _, c := range wrongJSONCase {
-			sending, err := json.Marshal(c.p)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clean database before each test
+			t.Cleanup(cleanup)
+
+			cfg := CfgAPI{
+				DB:                     database.New(db),
+				TokenSecret:            "test-secret",
+				TokenExpiration:        time.Second * 60,
+				RefreshTokenExpiration: time.Hour * 24,
+			}
+
+			var reqData any
+			var userData database.CreateUserParams
+			username, password := "user", "test"
+			reqData = parameters{
+				Username: username,
+				Password: password,
+			}
+
+			if tc.setupUser {
+				hashedPassword, err := auth.HashPassword(password)
+				if err != nil {
+					t.Fatalf("got unexpected error while hashing the password: %s", err)
+				}
+				userData = database.CreateUserParams{
+					Username:       username,
+					HashedPassword: hashedPassword,
+					CreatedAt:      time.Now().UTC(),
+					UpdatedAt:      time.Now().UTC(),
+				}
+				if _, err = cfg.DB.CreateUser(context.Background(), userData); err != nil {
+					t.Fatalf("got unexpected error while creating the user in the database: %s", err)
+				}
+
+			}
+
+			if tc.emptyBody {
+				reqData = struct{}{}
+			}
+
+			reqBody, err := json.Marshal(reqData)
 			if err != nil {
-				t.Fatal("Something went wrong while marshaling")
+				t.Fatalf("something went wrong while marshaling the structure: %s", err)
 			}
-			body := io.NopCloser(bytes.NewBuffer(sending))
-			r := &http.Request{
-				Body: body,
+			req := httptest.NewRequestWithContext(context.Background(), "POST", "/test", bytes.NewReader(reqBody))
+			req.Header.Set("Content Type", "application/json")
+			rr := httptest.NewRecorder()
+
+			cfg.HandlerCreateUser(rr, req)
+			if rr.Code != tc.expectedStatus {
+				t.Errorf("expected %v status, got %v status", tc.expectedStatus, rr.Code)
 			}
-			got, err := cfg.parseLoginRequest(r)
-			if err != c.err {
-				t.Errorf("Got err: %s", err)
-			}
-			if *got == want {
-				t.Errorf("Got %q, want %q", got, want)
-			}
-		}
-	})
+		})
+	}
 }

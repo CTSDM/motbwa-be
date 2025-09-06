@@ -26,7 +26,11 @@ func (cfg *CfgAPI) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	params := parameters{}
 	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&params); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else if params.Username == "" || params.Password == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -48,7 +52,7 @@ func (cfg *CfgAPI) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
 		return
 	} else if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		RespondWithError(w, http.StatusInternalServerError, "something went wrong while creating the user", err)
 		return
 	}
 
