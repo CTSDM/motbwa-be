@@ -53,7 +53,7 @@ func TestHandlerUser(t *testing.T) {
 			var reqData any
 			var userData database.CreateUserParams
 			username, password := "user", "test"
-			reqData = parameters{
+			reqData = parametersLogin{
 				Username: username,
 				Password: password,
 			}
@@ -89,7 +89,7 @@ func TestHandlerUser(t *testing.T) {
 
 			cfg.HandlerCreateUser(rr, req)
 			if rr.Code != tc.expectedStatus {
-				t.Errorf("expected %v status, got %v status", tc.expectedStatus, rr.Code)
+				t.Errorf("expected %v status, got %v", tc.expectedStatus, rr.Code)
 			}
 		})
 	}
