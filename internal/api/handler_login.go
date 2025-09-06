@@ -14,12 +14,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type parameters struct {
+type parametersLogin struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-type responseVals struct {
+type responseValsLogin struct {
 	ID           uuid.UUID `json:"id"`
 	Username     string    `json:"username"`
 	Token        string    `json:"token"`
@@ -28,11 +28,19 @@ type responseVals struct {
 
 var ErrUnauthorized = fmt.Errorf("unauthorized")
 
+func (p *parametersLogin) isEmpty() bool {
+	return p.Username == "" || p.Password == ""
+}
+
 func (cfg *CfgAPI) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	// Get username from the body
 	params, err := cfg.parseLoginRequest(r)
 	if err != nil {
 		RespondWithError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	} else if params.isEmpty() {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	// Authenticate user
@@ -52,7 +60,7 @@ func (cfg *CfgAPI) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All is good so let's return the jwt
-	RespondWithJSON(w, http.StatusCreated, responseVals{
+	RespondWithJSON(w, http.StatusCreated, responseValsLogin{
 		ID:           user.ID,
 		Username:     user.Username,
 		Token:        tokenString,
@@ -60,7 +68,7 @@ func (cfg *CfgAPI) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (cfg *CfgAPI) authenticateUser(ctx context.Context, params parameters) (*database.User, error) {
+func (cfg *CfgAPI) authenticateUser(ctx context.Context, params parametersLogin) (*database.User, error) {
 	// Get user from DB
 	user, err := cfg.DB.GetUserByUsername(ctx, params.Username)
 	if err == sql.ErrNoRows {
@@ -116,9 +124,10 @@ func (cfg *CfgAPI) createTokens(ctx context.Context, userID uuid.UUID) (string, 
 	return tokenString, refreshToken.Token, err
 }
 
-func (cfg *CfgAPI) parseLoginRequest(r *http.Request) (*parameters, error) {
-	var params parameters
+func (cfg *CfgAPI) parseLoginRequest(r *http.Request) (*parametersLogin, error) {
+	var params parametersLogin
 	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&params); err != nil {
 		return nil, fmt.Errorf("failed to decode the body: %w", err)
 	}
