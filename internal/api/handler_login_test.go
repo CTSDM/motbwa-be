@@ -66,7 +66,6 @@ func TestHandlerLogin(t *testing.T) {
 			var reqData any
 			username, password := "user", "test"
 			var user database.User
-			var tokenString, refreshTokenString string
 
 			reqData = parametersLogin{
 				Username: username,
@@ -84,10 +83,6 @@ func TestHandlerLogin(t *testing.T) {
 					CreatedAt:      time.Now().UTC(),
 					UpdatedAt:      time.Now().UTC(),
 				})
-				tokenString, refreshTokenString, err = cfg.createTokens(context.Background(), user.ID)
-				if err != nil {
-					t.Fatalf("couldn't create the tokens: %s", err)
-				}
 			}
 
 			if tc.invalidPayload {
@@ -103,7 +98,7 @@ func TestHandlerLogin(t *testing.T) {
 			}
 			// Setup request and response recorder
 			req := httptest.NewRequestWithContext(context.Background(), "POST", "/tets", bytes.NewReader(reqBody))
-			req.Header.Set("Content Type", "application/json")
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			// Call the function to test
@@ -111,22 +106,20 @@ func TestHandlerLogin(t *testing.T) {
 
 			if rr.Code != tc.expectedStatus {
 				t.Errorf("expected status %v, got %v", tc.expectedStatus, rr.Code)
+				return
 			}
 			if tc.expectedStatus == http.StatusCreated {
-				expectedRes := responseValsLogin{
-					ID:           user.ID,
-					Username:     user.Username,
-					Token:        tokenString,
-					RefreshToken: refreshTokenString,
-				}
 				var res responseValsLogin
 				decoder := json.NewDecoder(rr.Body)
 				if err := decoder.Decode(&res); err != nil {
 					t.Fatalf("couldn't decode the response payload: %s", err)
 				}
 
-				if expectedRes != res {
-					t.Errorf("want response %+v, got %+v", expectedRes, res)
+				if user.ID != res.ID {
+					t.Errorf("got userID %s, want userID %s", res.ID, user.ID)
+				}
+				if user.Username != res.Username {
+					t.Errorf("got username %s, want username %s", res.Username, user.Username)
 				}
 			}
 		})

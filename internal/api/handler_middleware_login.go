@@ -1,54 +1,48 @@
 package api
 
 import (
-	"database/sql"
-	"encoding/json"
-	"errors"
+	"context"
 	"net/http"
-	"time"
 
 	"github.com/CTSDM/motbwa-be/internal/auth"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-type authBody struct {
-	UserID             uuid.UUID `json:"id"`
-	Username           string    `json:"username"`
-	TokenString        string    `json:"tokenString"`
-	RefreshTokenString string    `json:"refreshTokenString"`
+type userKey int
+
+const (
+	_ userKey = iota
+	key
+)
+
+func ContextWithUser(ctx context.Context, userID uuid.UUID) context.Context {
+	return context.WithValue(ctx, key, userID)
+}
+
+func UserFromContext(ctx context.Context) (uuid.UUID, bool) {
+	userID, ok := ctx.Value(key).(uuid.UUID)
+	return userID, ok
 }
 
 func (cfg *CfgAPI) HandlerMiddlewareLogin(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var params authBody
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&params); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+		// get the token from the headers
+		tokenString, err := auth.GetHeaderValueTokenAPI(r.Header, "Auth")
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "Token was not found in the header.", err)
+			return
+		}
+		userID, err := auth.ValidateJWT(tokenString, cfg.TokenSecret)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, err.Error(), err)
 			return
 		}
 
-		userID, err := auth.ValidateJWT(params.TokenString, cfg.TokenSecret)
-		if errors.Is(err, jwt.ErrTokenExpired) {
-			refreshTokenDB, err2 := cfg.DB.GetRefreshToken(r.Context(), params.UserID)
-			if err2 == sql.ErrNoRows {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			} else if err2 != nil {
-				RespondWithError(w, http.StatusInternalServerError, "failed to retrieve refresh token", err2)
-				return
-			}
-			// we check if the refresh token has expired
-			timeNow := time.Now()
-			if timeNow.After(refreshTokenDB.ExpiresAt) {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-		} else if err != nil || params.UserID != userID {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+		// add value to context
+		ctx := r.Context()
+		ctx = ContextWithUser(ctx, userID)
+		r = r.WithContext(ctx)
+
 		next.ServeHTTP(w, r)
 	})
 }

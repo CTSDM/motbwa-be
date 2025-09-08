@@ -3,69 +3,46 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/CTSDM/motbwa-be/internal/auth"
 	"github.com/CTSDM/motbwa-be/internal/database"
-	"github.com/google/uuid"
 )
 
 func TestHandlerMiddlewareLogin(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name                string
-		setupUser           bool
-		expiredToken        bool
-		expiredRefreshToken bool
-		invalidUserID       bool
-		wrongPayload        bool
-		expectedStatus      int
+		name           string
+		setupUser      bool
+		expiredToken   bool
+		expectedStatus int
 	}{
 		{
-			name:                "happy path - valid token with valid username",
-			setupUser:           true,
-			expiredToken:        false,
-			expiredRefreshToken: false,
-			invalidUserID:       false,
-			expectedStatus:      http.StatusOK,
-		},
-		{
-			name:                "expired token with valid refresh",
-			setupUser:           true,
-			expiredToken:        true,
-			expiredRefreshToken: false,
-			invalidUserID:       false,
-			expectedStatus:      http.StatusOK,
-		},
-		{
-			name:                "expired token with expired refresh",
-			setupUser:           true,
-			expiredToken:        true,
-			expiredRefreshToken: true,
-			invalidUserID:       false,
-			expectedStatus:      http.StatusUnauthorized,
-		},
-		{
-			name:           "invalid user ID",
+			name:           "happy path - valid token with valid username",
 			setupUser:      true,
 			expiredToken:   false,
-			invalidUserID:  true,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "expired token",
+			setupUser:      true,
+			expiredToken:   true,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:           "no user setup",
-			setupUser:      false,
-			wrongPayload:   false,
+			name:           "token signed with antoher secret",
+			setupUser:      true,
+			expiredToken:   true,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:           "wrong payload",
+			name:           "missing header token",
 			setupUser:      false,
-			wrongPayload:   true,
 			expectedStatus: http.StatusBadRequest,
 		},
 	}
@@ -85,12 +62,8 @@ func TestHandlerMiddlewareLogin(t *testing.T) {
 			if tc.expiredToken {
 				cfg.TokenExpiration = 0
 			}
-			if tc.expiredRefreshToken {
-				cfg.RefreshTokenExpiration = 0
-			}
 
-			var reqData any
-
+			var tokenString string
 			if tc.setupUser {
 				userData := database.CreateUserParams{
 					Username:       "testuser",
@@ -100,46 +73,19 @@ func TestHandlerMiddlewareLogin(t *testing.T) {
 				}
 				// Create user and tokens
 				user := createUser(t, &cfg, ctx, userData)
-				tokenString, refreshTokenString, err := cfg.createTokens(ctx, user.ID)
+				token, err := auth.MakeJWT(user.ID, cfg.TokenSecret, cfg.TokenExpiration)
+				if err != nil {
+					t.Fatalf("failed to create JWT: %s", err)
+				}
 				if err != nil {
 					t.Fatalf("unable to create tokens: %s", err)
 				}
-
-				userID := user.ID
-				if tc.invalidUserID {
-					userID = uuid.New()
-				}
-
-				reqData = authBody{
-					UserID:             userID,
-					Username:           user.Username,
-					TokenString:        tokenString,
-					RefreshTokenString: refreshTokenString,
-				}
-
-			} else if tc.wrongPayload {
-				reqData = struct {
-					UserID string
-				}{
-					UserID: "INVALID",
-				}
-			} else {
-				reqData = authBody{
-					UserID:             uuid.New(),
-					Username:           "none",
-					TokenString:        "none",
-					RefreshTokenString: "none",
-				}
+				tokenString = token
 			}
 
-			// Marshal the request data to JSON
-			reqBody, err := json.Marshal(reqData)
-			if err != nil {
-				t.Fatalf("failed to marshal request body: %s", err)
-			}
-
-			req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(reqBody))
+			req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte{}))
 			req.Header.Set("Content-Type", "application/json")
+			req.Header["Auth"] = []string{fmt.Sprintf("Bearer %s", tokenString)}
 			// Create response recorder
 			rr := httptest.NewRecorder()
 

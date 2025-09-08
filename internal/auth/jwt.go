@@ -74,7 +74,7 @@ func GetHeaderValueTokenAPI(headers http.Header, headerName string) (string, err
 	header := headers.Get(headerName)
 	headerParts := strings.Fields(header)
 	if len(headerParts) != 2 {
-		return "", fmt.Errorf("Token string %q not found", headerName)
+		return "", fmt.Errorf("Token string for header %q not found", headerName)
 	}
 	return headerParts[1], nil
 }

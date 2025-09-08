@@ -84,7 +84,7 @@ func TestHandlerUser(t *testing.T) {
 				t.Fatalf("something went wrong while marshaling the structure: %s", err)
 			}
 			req := httptest.NewRequestWithContext(context.Background(), "POST", "/test", bytes.NewReader(reqBody))
-			req.Header.Set("Content Type", "application/json")
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			cfg.HandlerCreateUser(rr, req)
