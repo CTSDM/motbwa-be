@@ -3,6 +3,9 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -64,4 +67,14 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return userID, nil
+}
+
+// The token value is expected to be as --> headerName: "tokenName tokenValue"
+func GetHeaderValueTokenAPI(headers http.Header, headerName string) (string, error) {
+	header := headers.Get(headerName)
+	headerParts := strings.Fields(header)
+	if len(headerParts) != 2 {
+		return "", fmt.Errorf("Token string %q not found", headerName)
+	}
+	return headerParts[1], nil
 }
