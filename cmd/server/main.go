@@ -58,7 +58,7 @@ func setupAPI() (*http.ServeMux, error) {
 	} else if tokenExpiration == 0 {
 		tokenExpiration = 120
 	}
-	refreshTokenExpiration, err := strconv.Atoi(os.Getenv("TOKEN_EXPIRATION_SECONDS"))
+	refreshTokenExpiration, err := strconv.Atoi(os.Getenv("REFRESH_TOKEN_EXPIRATION_SECONDS"))
 	if err != nil {
 		return nil, err
 	} else if refreshTokenExpiration == 0 {

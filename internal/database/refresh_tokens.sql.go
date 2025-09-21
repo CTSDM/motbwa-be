@@ -16,7 +16,7 @@ const createRefreshToken = `-- name: CreateRefreshToken :one
 INSERT INTO refresh_tokens(token, created_at, updated_at, expires_at, user_id)
     VALUES($1, $2, $3, $4, $5)
 RETURNING token, created_at, updated_at, expires_at, user_id
-` //#nosec CWE-798 -- This is false positive on SQL queries
+`
 
 type CreateRefreshTokenParams struct {
 	Token     string
@@ -48,7 +48,7 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 const deleteRefreshToken = `-- name: DeleteRefreshToken :exec
 DELETE FROM refresh_tokens
 WHERE user_id = $1
-` //#nosec CWE-798 -- This is false positive on SQL queries
+`
 
 func (q *Queries) DeleteRefreshToken(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteRefreshToken, userID)
@@ -57,11 +57,29 @@ func (q *Queries) DeleteRefreshToken(ctx context.Context, userID uuid.UUID) erro
 
 const getRefreshToken = `-- name: GetRefreshToken :one
 SELECT token, created_at, updated_at, expires_at, user_id FROM refresh_tokens
-WHERE user_id = $1
-` //#nosec CWE-798 -- This is false positive on SQL queries
+WHERE token = $1
+`
 
-func (q *Queries) GetRefreshToken(ctx context.Context, userID uuid.UUID) (RefreshToken, error) {
-	row := q.db.QueryRowContext(ctx, getRefreshToken, userID)
+func (q *Queries) GetRefreshToken(ctx context.Context, token string) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshToken, token)
+	var i RefreshToken
+	err := row.Scan(
+		&i.Token,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.UserID,
+	)
+	return i, err
+}
+
+const getRefreshTokenByUserID = `-- name: GetRefreshTokenByUserID :one
+SELECT token, created_at, updated_at, expires_at, user_id FROM refresh_tokens
+WHERE user_id = $1
+`
+
+func (q *Queries) GetRefreshTokenByUserID(ctx context.Context, userID uuid.UUID) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshTokenByUserID, userID)
 	var i RefreshToken
 	err := row.Scan(
 		&i.Token,
@@ -79,7 +97,7 @@ SET updated_at = $1,
     expires_at = $2
 WHERE user_id = $3
 RETURNING token, created_at, updated_at, expires_at, user_id
-` //#nosec CWE-798 -- This is false positive on SQL queries
+`
 
 type UpdateRefreshTokenParams struct {
 	UpdatedAt time.Time
