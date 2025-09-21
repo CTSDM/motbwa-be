@@ -41,7 +41,6 @@ func (m *Manager) routeEvent(event Event, c *Client) error {
 }
 
 func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
-	// for now we assume there is no login
 	log.Println("New websocket connection")
 
 	conn, err := webSocketUpgrader.Upgrade(w, r, nil)

@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"log"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -9,7 +9,13 @@ import (
 type Event struct {
 	Type    string    `json:"type"`
 	Room    uuid.UUID `json:"room"`
-	Payload []byte    `json:"payload"`
+	Message Message   `json:"message"`
+}
+
+type Message struct {
+	Date    time.Time `json:"date"`
+	Sender  string    `json:"sender"`
+	Content string    `json:"content"`
 }
 
 type EventHandler func(event Event, c *Client) error
@@ -28,8 +34,6 @@ type SendMessageEvent struct {
 func SendMessage(event Event, c *Client) error {
 	// send the information to the users
 	// for now we broadcast the message to all users...
-
-	log.Println(event.Room, string(event.Payload))
 	for client := range c.manager.clients {
 		if client == c {
 			continue

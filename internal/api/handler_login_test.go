@@ -83,6 +83,9 @@ func TestHandlerLogin(t *testing.T) {
 					CreatedAt:      time.Now().UTC(),
 					UpdatedAt:      time.Now().UTC(),
 				})
+				if err != nil {
+					t.Fatalf("something went wrong while creating the user in the database: %s", err)
+				}
 			}
 
 			if tc.invalidPayload {
