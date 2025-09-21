@@ -75,6 +75,7 @@ func setupAPI() (*http.ServeMux, error) {
 	serveMux := http.NewServeMux()
 
 	serveMux.HandleFunc("/ws", cfgApi.HandlerMiddlewareLogin(manager.ServeWS))
+	serveMux.HandleFunc("GET /api/users/{username}", cfgApi.HandlerMiddlewareLogin(cfgApi.HandlerCheckUserExists))
 	serveMux.HandleFunc("POST /api/users", cfgApi.HandlerCreateUser)
 	serveMux.HandleFunc("POST /api/login", cfgApi.HandlerLogin)
 	serveMux.HandleFunc("POST /admin/reset", cfgApi.HandlerDeleteAllUsers)

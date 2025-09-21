@@ -71,3 +71,21 @@ func (cfg *CfgAPI) HandlerDeleteAllUsers(w http.ResponseWriter, r *http.Request)
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func (cfg *CfgAPI) HandlerCheckUserExists(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+	if username == "" {
+		RespondWithError(w, http.StatusBadRequest, "user parameter required", nil)
+		return
+	}
+
+	if _, err := cfg.DB.GetUserByUsername(r.Context(), username); err == sql.ErrNoRows {
+		RespondWithError(w, http.StatusNotFound, "user not found", nil)
+		return
+	} else if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "something went wrong while retrieving the user from the database", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
