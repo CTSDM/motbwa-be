@@ -41,6 +41,7 @@ func NewClient(conn WebSocketConnection, manager *Manager) *Client {
 }
 
 func (c *Client) readMessages() {
+	defer c.manager.removeClient(c)
 	// setup for receiving pong message
 	if err := c.connection.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		return
@@ -74,6 +75,7 @@ func (c *Client) readMessages() {
 }
 
 func (c *Client) writeMessages() {
+	defer c.manager.removeClient(c)
 	// setup of receiving ping message
 	c.nextPing = time.NewTicker(pingInterval)
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/CTSDM/motbwa-be/internal/api"
 	"github.com/gorilla/websocket"
@@ -18,6 +19,7 @@ var webSocketUpgrader = websocket.Upgrader{
 type Manager struct {
 	clients  ClientList
 	handlers map[string]EventHandler
+	mu       sync.RWMutex
 }
 
 func NewManager(ctx context.Context) *Manager {
@@ -59,4 +61,17 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	go client.readMessages()
 	go client.writeMessages()
+}
+
+func (m *Manager) removeClient(client *Client) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.clients[client]; ok {
+		if err := client.connection.Close(); err != nil {
+			log.Printf("error while closing the connection when removing a client: %s", err)
+		}
+		delete(m.clients, client)
+		log.Println("client removed successfully")
+	}
 }
