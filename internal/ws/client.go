@@ -52,13 +52,20 @@ func (c *Client) readMessages() {
 
 	for {
 		_, payload, err := c.connection.ReadMessage()
+		// Handle closures
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("Error while reading the incoming message through ws: %v", err)
-				return
-			} else if err == websocket.ErrReadLimit {
+			if err == websocket.ErrReadLimit {
 				log.Printf("The incoming message was too big, connection closed: %v", err)
 				return
+			}
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("The client closed the connection due to: %s", err)
+				return
+			} else if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("The client gracefully closed the connection.")
+				return
+			} else {
+				log.Printf("Connection error: %s", err)
 			}
 		}
 		var request Event
@@ -86,24 +93,24 @@ func (c *Client) writeMessages() {
 			// we close the connection
 			if !ok {
 				if err := c.connection.WriteMessage(websocket.CloseMessage, nil); err != nil {
-					log.Println("connection closed: ", err)
+					log.Println("Connection closed: ", err)
 				}
 				return
 			}
 			data, err := json.Marshal(event)
 			if err != nil {
-				log.Printf("failed to marshal the event: %v", err)
+				log.Printf("Failed to marshal the event: %v", err)
 				return
 			}
 			err = c.connection.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
-				log.Printf("failed to marshal the event: %v", err)
+				log.Printf("Failed to marshal the event: %v", err)
 				return
 			}
 
 		case <-c.nextPing.C:
 			if err := c.connection.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				log.Printf("writing err: %v", err)
+				log.Printf("Writing err: %v", err)
 				return
 			}
 			c.nextPing = time.NewTicker(pingInterval)
